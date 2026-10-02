@@ -13,7 +13,7 @@
 
 | Layer | Component | Role |
 |---|---|---|
-| L1 | Free APIs (S2/arXiv/OpenAlex) | Raw data access |
+| L1 | Free APIs (S2/arXiv/OpenAlex/Crossref) + DDG + Playwright | Raw data access |
 | L2 | `academic_search.py` CLI | Unified search + dedup + format |
 | L3 | `SKILL.md` | Claude Code workflow integration |
 
@@ -48,12 +48,23 @@ This allows cross-source deduplication and uniform downstream processing.
 
 ## Feature Backlog
 
-### v0.2 — Polish (next sprint)
-- [ ] S2 API key support in `_s2_headers()` — done, reading env var
+### v0.2 — Search Matrix Expansion (2026-06-10) ✅ DONE
+- [x] Crossref API as 4th academic source (DOI metadata, venue info)
+- [x] DuckDuckGo general web search (`--source ddg`)
+- [x] `--venue` filter with conference aliases (neurips/aaai/kdd/icml/etc.)
+- [x] `--author` filter (OpenAlex `raw_author_name.search`, Crossref `query.author`)
+- [x] OpenAlex NoneType crash fix (defensive `_safe_get()`)
+- [x] arXiv query format fix (removed `all:` prefix)
+- [x] `--paper` multi-source fallback (S2 → Crossref → OpenAlex DOI)
+- [x] OpenAlex arXiv ID extraction from DOI/landing_page_url
+- [x] Windows console encoding fix (UTF-8 reconfigure)
+- [x] Playwright MCP integration for browser-based search
+- [x] SKILL.md updated with search matrix + browser workflow
 - [ ] Title-similarity dedup (beyond exact DOI/arXiv match)
 - [ ] `--output-dir` flag to save cards directly to a directory
 - [ ] Config file support (`.research-sprint.yml`) for default source, limit, output paths
-- [ ] Citation count-based ranking across sources in `search_all()`
+
+**Testing**: Google Scholar blocks Playwright (anti-bot); Semantic Scholar web works perfectly.
 
 ### v0.3 — MCP Server (major milestone)
 - [ ] Refactor to MCP server using `FastMCP`
@@ -159,6 +170,35 @@ def generate_card(paper_id: str) -> str:
 - No rate limit issues with polite pool (email header)
 - Best metadata quality (citation counts, OA status, venue)
 - Abstract in inverted index format (already handled)
+- Venue filter: must resolve name → source ID first (e.g. "AAAI" → S4210191458)
+- `primary_location.source.display_name.search` is NOT a valid filter field
+- Use `primary_location.source.id:Sxxxx` instead
+- Author filter: `raw_author_name.search:Name` works well
+- Known aliases for venues: see `_VENUE_ALIASES` dict in code
+
+### Crossref API
+- No rate limit issues with polite pool (User-Agent with mailto)
+- Best DOI metadata (venue, journal, citation count via `is-referenced-by-count`)
+- `query.bibliographic` for topic search, `query.container-title` for venue
+- `query.author` for author filtering
+- Abstract may be in JATS XML format (strip tags with regex)
+- arXiv DOIs (10.48550/arxiv.xxxx) often return 404 — not all indexed
+
+### DuckDuckGo Search
+- Requires `pip install duckduckgo-search` (optional dependency)
+- Package renamed to `ddgs` but `duckduckgo_search` still works
+- No API key needed, no rate limits
+- Quality varies — good for finding URLs, author pages, blog posts
+- Not reliable for precise academic queries (use dedicated APIs instead)
+- May return non-English results depending on region
+
+### Playwright MCP
+- v0.0.76, configured via `.mcp.json` in project root
+- `--headless` mode by default (no visible browser window)
+- Semantic Scholar web: works perfectly, full search results with TLDR/citations/PDF
+- Google Scholar: BLOCKED (anti-bot detection, shows "unusual traffic" CAPTCHA)
+- arXiv HTML: works, returns ~1MB HTML per paper
+- Use for: visual browsing, Semantic Scholar features not in API, full-text reading
 
 ---
 
